@@ -43,69 +43,67 @@ def download_video(request):
             temp_dir = gettempdir()
             output_path = os.path.join(temp_dir, '%(title)s.%(ext)s')
 
-            # Set up yt-dlp options
+            # Extract video info without downloading
+            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                video_info = ydl.extract_info(url, download=False)
+                formats = video_info.get('formats', [])
+
+                # Find the best video format based on resolution
+                best_video = max(
+                    (fmt for fmt in formats if fmt.get('vcodec') != 'none'), 
+                    key=lambda x: x.get('height', 0), 
+                    default=None
+                )
+                
+                # Find the best audio format
+                best_audio = max(
+                    (fmt for fmt in formats if fmt.get('acodec') != 'none'),
+                    key=lambda x: x.get('abr', 0),
+                    default=None
+                )
+
+                if not best_video:
+                    return JsonResponse({'error': 'No video formats available'}, status=400)
+
+            # Set yt-dlp options for the selected formats
             options = {
                 'outtmpl': output_path,
                 'progress_hooks': [progress_hook],
-                'format': 'best'  # Default format for both audio and video
+                'postprocessors': [{
+                    'key': 'FFmpegMerger',  # Ensure video and audio are merged
+                }]
             }
-            
-            if mode == 'audio':
-                options['format'] = 'bestaudio/best'  # Best audio format only
-            elif mode == 'video':
-                options['format'] = 'bestvideo+bestaudio/best'  # Highest quality combined
+
+            if mode == 'video':
+                options['format'] = best_video['format_id']
+            elif mode == 'audio':
+                options['format'] = best_audio['format_id'] if best_audio else 'bestaudio'
             else:  # Default is 'both'
-                options['format'] = 'bestvideo+bestaudio/best'  
+                options['format'] = f"{best_video['format_id']}+{best_audio['format_id']}"
 
-            # Start downloading the video
-            print("Starting download with yt-dlp...")
+            # Start downloading
             with yt_dlp.YoutubeDL(options) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                print(f"Download started: {filename}")
+                ydl.download([url])
 
-            # Once download is complete, return the file as an attachment
-            print(f"Returning file: {filename}")
-
-            # Get file extension to set the correct MIME type
-            file_extension = os.path.splitext(filename)[1].lower()
-            content_type = 'application/octet-stream'  # Default for unknown file types
-
-            # Determine the correct MIME type based on the file extension
-            if file_extension == '.mp4':
-                content_type = 'video/mp4'
-            elif file_extension == '.mp3':
-                content_type = 'audio/mpeg'
-            elif file_extension == '.webm':
-                content_type = 'video/webm'
-            elif file_extension == '.mkv':
-                content_type = 'video/x-matroska'
-            elif file_extension == '.flv':
-                content_type = 'video/x-flv'
-            elif file_extension == '.wav':
-                content_type = 'audio/wav'
+            # Prepare the filename
+            filename = ydl.prepare_filename(video_info)
 
             # Serve the file as a downloadable attachment
             with open(filename, 'rb') as file:
-                response = HttpResponse(file, content_type=content_type)
+                response = HttpResponse(file, content_type='application/octet-stream')
                 response['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
-
-            # Reset the progress after the download is complete
-            global download_progress
-            download_progress = {'current': 0, 'total': 0}
 
             # Clean up the downloaded file
             os.remove(filename)
-            print(f"File {filename} removed after download.")
 
             return response
 
         except Exception as e:
-            print(f"Error during download: {str(e)}")
             return JsonResponse({'error': str(e)}, status=500)
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
+    
 # This function will allow you to send progress data to the frontend.
 def get_progress(request):
     try:
