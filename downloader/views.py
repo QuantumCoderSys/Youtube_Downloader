@@ -51,9 +51,11 @@ def download_video(request):
             }
             
             if mode == 'audio':
-                options['format'] = 'bestaudio'
+                options['format'] = 'bestaudio/best'  # Best audio format only
             elif mode == 'video':
-                options['format'] = 'bestvideo'
+                options['format'] = 'bestvideo+bestaudio/best'  # Highest quality combined
+            else:  # Default is 'both'
+                options['format'] = 'bestvideo+bestaudio/best'  
 
             # Start downloading the video
             print("Starting download with yt-dlp...")
