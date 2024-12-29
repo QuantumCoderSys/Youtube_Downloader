@@ -43,7 +43,7 @@ def download_video(request):
             temp_dir = gettempdir()
             output_path = os.path.join(temp_dir, '%(title)s.%(ext)s')
 
-            # Set up yt_dlp options
+            # Set up yt-dlp options
             options = {
                 'outtmpl': output_path,
                 'progress_hooks': [progress_hook],
@@ -64,12 +64,37 @@ def download_video(request):
 
             # Once download is complete, return the file as an attachment
             print(f"Returning file: {filename}")
-            response = HttpResponse(open(filename, 'rb'), content_type='application/octet-stream')
-            response['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
+
+            # Get file extension to set the correct MIME type
+            file_extension = os.path.splitext(filename)[1].lower()
+            content_type = 'application/octet-stream'  # Default for unknown file types
+
+            # Determine the correct MIME type based on the file extension
+            if file_extension == '.mp4':
+                content_type = 'video/mp4'
+            elif file_extension == '.mp3':
+                content_type = 'audio/mpeg'
+            elif file_extension == '.webm':
+                content_type = 'video/webm'
+            elif file_extension == '.mkv':
+                content_type = 'video/x-matroska'
+            elif file_extension == '.flv':
+                content_type = 'video/x-flv'
+            elif file_extension == '.wav':
+                content_type = 'audio/wav'
+
+            # Serve the file as a downloadable attachment
+            with open(filename, 'rb') as file:
+                response = HttpResponse(file, content_type=content_type)
+                response['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
 
             # Reset the progress after the download is complete
             global download_progress
             download_progress = {'current': 0, 'total': 0}
+
+            # Clean up the downloaded file
+            os.remove(filename)
+            print(f"File {filename} removed after download.")
 
             return response
 
