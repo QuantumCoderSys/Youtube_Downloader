@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader</title>
+    <style>
+        /* General Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px 40px;
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #222;
+            margin-bottom: 20px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: bold;
+            text-align: left;
+            margin-bottom: 8px;
+            color: #444;
+        }
+
+        input[type="url"], select, button {
+            width: 100%;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        input[type="url"]:focus, select:focus {
+            outline: none;
+            border-color: #0077ff;
+            box-shadow: 0 0 5px rgba(0, 119, 255, 0.2);
+        }
+
+        button {
+            background-color: #0077ff;
+            color: white;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #005bb5;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        /* Progress Bar Styling */
+        .progress-container {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+            border-radius: 10px;
+        }
+
+        .percentage {
+            margin-top: 10px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Downloader</h1>
+        <form id="download-form" method="post">
+            {% csrf_token %}
+            <label for="url">YouTube URL:</label>
+            <input type="url" id="url" name="url" placeholder="Enter video URL" required>
+
+            <label for="mode">Mode:</label>
+            <select id="mode" name="mode">
+                <option value="both">Both (Audio & Video)</option>
+                <option value="audio">Audio Only</option>
+                <option value="video">Video Only</option>
+            </select>
+
+            <button type="submit">Download</button>
+        </form>
+
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="percentage" id="percentage">0%</div>
+    </div>
+
+    <script>
+        document.getElementById('download-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+    
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const percentageText = document.getElementById('percentage');
+    
+            // Show progress bar
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            percentageText.textContent = '0%';
+    
+            // Start download
+            const response = await fetch('/download_video/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+    
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = ''; // Optional: Set a default filename
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+    
+                // Polling progress every second
+                const interval = setInterval(async () => {
+                    const progressResponse = await fetch('/get_progress/');
+                    const data = await progressResponse.json();
+    
+                    if (data.progress !== undefined && !isNaN(data.progress)) {
+                        const percentage = Math.round(data.progress);  // Ensure it is a whole number
+                        progressBar.style.width = `${percentage}%`;
+                        percentageText.textContent = `${percentage}%`;
+    
+                        if (percentage === 100) {
+                            clearInterval(interval);
+                            percentageText.textContent = 'Download complete!';
+                        }
+                    } else {
+                        console.error("Invalid progress data:", data);  // Error handling
+                    }
+                }, 1000); // Update every second
+            } else {
+                const result = await response.json();
+                alert(result.error || "An error occurred!");
+            }
+        });
+    </script>
+</body>
+</html>
