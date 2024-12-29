@@ -138,65 +138,54 @@
     </div>
 
     <script>
-        // Inside the script tag
         document.getElementById('download-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const formData = new FormData(event.target);
-            
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const progressContainer = document.getElementById('progress-container');
-            const progressBar = document.getElementById('progress-bar');
-            const percentageText = document.getElementById('percentage');
-            
-            // Show progress bar
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            percentageText.textContent = '0%';
-            
-            // Start download
-            const response = await fetch('/download_video/', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            });
-            
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = ''; // Optional: Set a default filename
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-                
-                // Polling progress every second
-                const interval = setInterval(async () => {
-                    const progressResponse = await fetch('/get_progress/');
-                    const data = await progressResponse.json();
-                    
-                    if (data.progress !== undefined && !isNaN(data.progress)) {
-                        const percentage = Math.round(data.progress);  // Ensure it is a whole number
-                        progressBar.style.width = `${percentage}%`;
-                        percentageText.textContent = `${percentage}%`;
-                        
-                        // Stop polling when download is complete
-                        if (percentage === 100) {
-                            clearInterval(interval);
-                            percentageText.textContent = 'Download complete!';
-                        }
-                    } else {
-                        console.error("Invalid progress data:", data);  // Error handling
-                    }
-                }, 1000); // Update every second
-            } else {
-                const result = await response.json();
-                alert(result.error || "An error occurred!");
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const percentageText = document.getElementById('percentage');
+        
+        // Show progress bar
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        percentageText.textContent = '0%';
+        
+        // Start download
+        const response = await fetch('/download_video/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken
             }
         });
+        
+        if (response.ok) {
+            // Polling progress every second
+            const interval = setInterval(async () => {
+                const progressResponse = await fetch('/get_progress/');
+                const data = await progressResponse.json();
+                
+                if (data.progress !== undefined && !isNaN(data.progress)) {
+                    const percentage = Math.round(data.progress);  // Ensure it is a whole number
+                    progressBar.style.width = `${percentage}%`;
+                    percentageText.textContent = `${percentage}%`;
+                    
+                    // Stop polling when download is complete
+                    if (percentage === 100) {
+                        clearInterval(interval);
+                        percentageText.textContent = 'Download complete!';
+                    }
+                } else {
+                    console.error("Invalid progress data:", data);  // Error handling
+                }
+            }, 1000); // Update every second
+        } else {
+            const result = await response.json();
+            alert(result.error || "An error occurred!");
+        }
+    });
     </script>
 </body>
 </html>
