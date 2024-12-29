@@ -86,7 +86,7 @@ def get_progress(request):
             progress = (download_progress['current'] / download_progress['total']) * 100
         else:
             progress = 0
-        print(f"Progress sent: {progress}%")
+        # print(f"Progress sent: {progress}%")
         return JsonResponse({'progress': progress}, status=200)
     except Exception as e:
         print(f"Error fetching progress: {str(e)}")
