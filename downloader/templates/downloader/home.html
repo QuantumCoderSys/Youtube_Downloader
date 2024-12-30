@@ -110,6 +110,25 @@
             margin-top: 10px;
             font-size: 20px;
         }
+        #progress-container {
+            width: 100%;
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+
+        #progress-bar {
+            height: 20px;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 0.1s ease-in-out;
+        }
+
+        #percentage {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -119,73 +138,76 @@
             {% csrf_token %}
             <label for="url">YouTube URL:</label>
             <input type="url" id="url" name="url" placeholder="Enter video URL" required>
-
+    
             <label for="mode">Mode:</label>
             <select id="mode" name="mode">
                 <option value="both">Both (Audio & Video)</option>
                 <option value="audio">Audio Only</option>
                 <option value="video">Video Only</option>
             </select>
-
+    
             <button type="submit">Download</button>
         </form>
-
+    
         <!-- Progress Bar -->
-        <div class="progress-container" id="progress-container">
-            <div class="progress-bar" id="progress-bar"></div>
+        <div id="progress-container" style="display: none;">
+            <div id="progress-bar" style="width: 0%; background-color: #4caf50; height: 20px;"></div>
+            <p id="percentage">0%</p>
         </div>
-        <div class="percentage" id="percentage">0%</div>
     </div>
 
     <script>
         document.getElementById('download-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(event.target);
-        
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-        const percentageText = document.getElementById('percentage');
-        
-        // Show progress bar
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
-        percentageText.textContent = '0%';
-        
-        // Start download
-        const response = await fetch('/download_video/', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': csrfToken
+            event.preventDefault();
+            const formData = new FormData(event.target);
+    
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const percentageText = document.getElementById('percentage');
+            const fakeLoaderInterval = 100; // Interval in ms for updating fake loader progress
+            let fakeProgress = 0;
+    
+            // Show progress bar
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            percentageText.textContent = '0%';
+    
+            // Fake progress loader
+            const fakeLoader = setInterval(() => {
+                if (fakeProgress < 95) {
+                    fakeProgress += 1; // Increment fake progress
+                    progressBar.style.width = `${fakeProgress}%`;
+                    percentageText.textContent = `${fakeProgress}%`;
+                }
+            }, fakeLoaderInterval);
+    
+            try {
+                const response = await fetch('/download_video/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                    },
+                });
+    
+                if (!response.ok) {
+                    const result = await response.json();
+                    throw new Error(result.error || 'An error occurred!');
+                }
+    
+                // Simulate completion of the fake loader
+                clearInterval(fakeLoader);
+                progressBar.style.width = '100%';
+                percentageText.textContent = 'Download complete!';
+            } catch (err) {
+                // Handle error and stop the fake loader
+                clearInterval(fakeLoader);
+                progressBar.style.width = '0%';
+                percentageText.textContent = 'Error occurred!';
+                alert(err.message);
             }
         });
-        
-        if (response.ok) {
-            // Polling progress every second
-            const interval = setInterval(async () => {
-                const progressResponse = await fetch('/get_progress/');
-                const data = await progressResponse.json();
-                
-                if (data.progress !== undefined && !isNaN(data.progress)) {
-                    const percentage = Math.round(data.progress);  // Ensure it is a whole number
-                    progressBar.style.width = `${percentage}%`;
-                    percentageText.textContent = `${percentage}%`;
-                    
-                    // Stop polling when download is complete
-                    if (percentage === 100) {
-                        clearInterval(interval);
-                        percentageText.textContent = 'Download complete!';
-                    }
-                } else {
-                    console.error("Invalid progress data:", data);  // Error handling
-                }
-            }, 1000); // Update every second
-        } else {
-            const result = await response.json();
-            alert(result.error || "An error occurred!");
-        }
-    });
     </script>
 </body>
 </html>
