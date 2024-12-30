@@ -76,27 +76,29 @@ def download_video_thread(url, mode):
         options = {
             'outtmpl': output_path,
             'progress_hooks': [progress_hook],
-            'format': 'bestvideo+bestaudio/best',  # Highest resolution video with best audio
         }
-        
-        if mode == 'audio':
-            options['format'] = 'bestaudio'
-        elif mode == 'video':
-            options['format'] = 'bestvideo+bestaudio/best'  # Highest quality video and audio
 
-        # Start downloading the video
+        # Adjust format and postprocessing based on mode
+        if mode == 'audio':
+            options['format'] = 'bestaudio/best'  # Download best audio
+            options['postprocessors'] = [  # Convert to MP3 after download
+                {
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',  # Adjust quality as needed
+                }
+            ]
+        elif mode == 'video':
+            options['format'] = 'bestvideo+bestaudio[ext=mp4]/best[ext=mp4]'  # Best video and audio, MP4 container
+        else:  # For both, default to highest quality available
+            options['format'] = 'bestvideo+bestaudio/best'
+
+        # Start downloading the video/audio
         print("Starting download with yt-dlp...")
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-            print(f"Download started: {filename}")
-
-        # Once download is complete, return the file as an attachment
-        print(f"Returning file: {filename}")
-
-        # Clean up the downloaded file
-        os.remove(filename)
-        print(f"File {filename} removed after download.")
+            print(f"Download complete: {filename}")
 
     except Exception as e:
         print(f"Error during download: {str(e)}")
